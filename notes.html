@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Soru Havuzu | Bilgi Notları</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+  <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+  <section class="panel">
+    <header class="page-head">
+      <h1>Bilgi Notları</h1>
+      <p class="small">Tekrar etmek istediğin bilgileri seçtiğin kazanıma bağlı olarak sakla.</p>
+    </header>
+    <div class="page-actions">
+      <input id="search" placeholder="Notlarda ara..." style="flex:1">
+      <button id="favorites" class="secondary" type="button">Favoriler</button>
+      <a class="secondary" href="ekle.html?mode=note">＋ Bilgi Ekle</a>
+    </div>
+  </section>
+  <section class="panel">
+    <div id="status" class="status info"></div>
+    <div id="list"></div>
+  </section>
+</div>
+<script type="module">
+import { bootPage, escapeHTML, showMessage } from './js/common.js';
+import { initDB } from './js/db/dexie-db.js';
+import { listNotes, deleteNote, toggleFavorite } from './js/notes/notes-repo.js';
+
+const search = document.querySelector('#search');
+const favorites = document.querySelector('#favorites');
+const list = document.querySelector('#list');
+const status = document.querySelector('#status');
+let favoriteOnly = false;
+
+async function refresh() {
+  const rows = await listNotes({ search: search.value, favorite: favoriteOnly });
+  list.replaceChildren();
+  if (!rows.length) {
+    list.innerHTML = '<div class="small">Henüz bilgi notu yok. Ekle ekranından yeni bir not oluşturabilirsin.</div>';
+    return;
+  }
+  for (const note of rows) {
+    const card = document.createElement('article');
+    card.className = 'question-card';
+    card.innerHTML = `
+      <div class="page-actions">
+        <div>
+          <h2>${escapeHTML(note.title)}</h2>
+          <div class="small">${escapeHTML(note.subjectName || 'Genel')}${note.learningOutcomeCode ? ` · ${escapeHTML(note.learningOutcomeCode)}` : ''}</div>
+        </div>
+        <div class="actions">
+          <button class="secondary fav" type="button">${note.favorite ? '★' : '☆'}</button>
+          <button class="secondary del" type="button">Sil</button>
+        </div>
+      </div>
+      <p>${escapeHTML(note.content || '').replaceAll('\n', '<br>')}</p>
+      ${note.tags?.length ? `<div class="small">${note.tags.map((tag) => `#${escapeHTML(tag)}`).join(' ')}</div>` : ''}
+      <div class="small" style="margin-top:8px">${note.srs?.reviewCount || 0}. tekrar · sıradaki tarih: ${escapeHTML(note.srs?.nextReviewDate || '-')}</div>`;
+    card.querySelector('.fav').onclick = async () => { await toggleFavorite(note.id); await refresh(); };
+    card.querySelector('.del').onclick = async () => { if (confirm('Bu bilgi notu silinsin mi?')) { await deleteNote(note.id); await refresh(); } };
+    list.append(card);
+  }
+  showMessage(status, `${rows.length} bilgi notu gösteriliyor.`, 'success');
+}
+
+search.oninput = refresh;
+favorites.onclick = () => { favoriteOnly = !favoriteOnly; favorites.textContent = favoriteOnly ? 'Tüm Notlar' : 'Favoriler'; refresh(); };
+await bootPage();
+await initDB();
+await refresh();
+</script>
+</body>
+</html>

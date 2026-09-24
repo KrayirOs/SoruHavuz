@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Soru Getir</title><link rel="stylesheet" href="styles.css"></head>
+<body><main class="container"><nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+<section class="panel"><h1>Soru Getir</h1><p class="small">İstediğin sınırları seç; sistem yalnızca o kazanımlardan ve özelliklerden soruları getirir. İstersen tüm eşleşen soruları alabilirsin.</p>
+<div class="grid two">
+<div><label>Ders</label><select id="subject"></select></div><div><label>Sınıf</label><select id="grade"></select></div>
+<div><label>Ünite</label><select id="unit"></select></div><div><label>Konu</label><select id="topic"></select></div>
+<div><label>Kazanım</label><select id="outcome"></select></div><div><label>Soru tipi</label><select id="questionType"><option value="">Fark etmez</option></select></div>
+<div><label>Minimum zorluk</label><select id="difficultyMin"><option value="">Fark etmez</option><option value="1">1 — Çok Kolay</option><option value="2">2 — Kolay</option><option value="3">3 — Orta</option><option value="4">4 — Zor</option><option value="5">5 — Çok Zor</option></select></div>
+<div><label>Maksimum zorluk</label><select id="difficultyMax"><option value="">Fark etmez</option><option value="1">1 — Çok Kolay</option><option value="2">2 — Kolay</option><option value="3">3 — Orta</option><option value="4">4 — Zor</option><option value="5">5 — Çok Zor</option></select></div>
+<div><label>Çözülmüş sorular</label><select id="solvedPolicy"><option value="exclude">Çözülmemişleri getir</option><option value="include">Hepsini getir</option><option value="prefer_unsolved">Çözülmemişlere öncelik ver</option></select></div>
+<div><label>Kaç soru?</label><select id="limit"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option><option value="all">Tüm eşleşenler</option></select></div>
+</div>
+<div><label for="text">Ek arama metni (opsiyonel)</label><input id="text" placeholder="Örn. grafik, türev, hız problemi"></div>
+<div class="actions"><button id="search">Soruları Getir</button><button id="clear" class="secondary">Temizle</button></div><div id="status" class="status info">Hazır.</div></section>
+<section class="panel"><div id="summary" class="small"></div><div id="results" class="list"></div></section></main>
+<script type="module">
+import { bootPage } from './js/common.js';
+import { db, initDB } from './js/db/dexie-db.js';
+import { CurriculumRepository } from './js/curriculum/repository/curriculum-repository.js';
+import { createBrowserQuestionRetrievalService } from './js/retrieval/browser-service.js';
+import { QUESTION_TYPES } from './js/questions/question-config.js'; import { appSubjectForCurriculum } from './js/curriculum/core/subject-mapping.js';
+const $=id=>document.getElementById(id); const service=createBrowserQuestionRetrievalService(); let records=[];
+const unique=(values)=>[...new Set(values.filter(v=>v!==null&&v!==undefined&&v!==''))].sort((a,b)=>String(a).localeCompare(String(b),'tr-TR'));
+function fill(id, values, placeholder){ const el=$(id), current=el.value; el.replaceChildren(new Option(placeholder,'')); for(const v of values) el.add(new Option(v,String(v))); if(values.includes(current)) el.value=current; }
+function filtered(){ return records.filter(r=>(!$('subject').value||r.subject===$('subject').value)&&(!$('grade').value||String(r.grade)===$('grade').value)&&(!$('unit').value||r.unit===$('unit').value)&&(!$('topic').value||r.topic===$('topic').value)); }
+function refresh(level=0){ const a=filtered(); if(level<=0) fill('subject',unique(records.map(r=>r.subject)),'Tüm dersler'); const b=filtered(); if(level<=1) fill('grade',unique(b.map(r=>r.grade)),'Tüm sınıflar'); const c=filtered(); if(level<=2) fill('unit',unique(c.map(r=>r.unit)),'Tüm üniteler'); const d=filtered(); if(level<=3) fill('topic',unique(d.map(r=>r.topic)),'Tüm konular'); const e=filtered(); const out=$('outcome'), current=out.value; out.replaceChildren(new Option('Tüm kazanımlar','')); e.forEach(r=>out.add(new Option(`${r.code||'—'} — ${r.text}`,r.id))); if(e.some(r=>String(r.id)===current)) out.value=current; }
+['subject','grade','unit','topic'].forEach((id,i)=>$(id).addEventListener('change',()=>{ refresh(i+1); $('outcome').value=''; }));
+for(const t of QUESTION_TYPES) $('questionType').add(new Option(t.label,t.id));
+$('clear').onclick=()=>{ for(const id of ['subject','grade','unit','topic','outcome','questionType','difficultyMin','difficultyMax']) $(id).value=''; $('solvedPolicy').value='exclude'; $('limit').value='20'; $('text').value=''; refresh(0); $('results').replaceChildren(); $('summary').textContent=''; $('status').textContent='Hazır.'; $('status').className='status info'; };
+$('search').onclick=async()=>{ try{ $('status').textContent='Sorular hazırlanıyor…'; $('status').className='status info'; const outcomeId=$('outcome').value; const subjectRow=appSubjectForCurriculum($('subject').value||'', null); const response=await service.retrieve({ subjectId:subjectRow?.id||null, grade:$('grade').value||null, unitName:$('unit').value||null, topicName:$('topic').value||null, learningOutcomeIds:outcomeId?[outcomeId]:[], questionTypes:$('questionType').value?[$('questionType').value]:[], difficulty:{min:$('difficultyMin').value||null,max:$('difficultyMax').value||null}, solvedPolicy:$('solvedPolicy').value, queryText:$('text').value, limit:$('limit').value==='all'?null:Number($('limit').value), diversity:.35 }); $('summary').textContent=`${response.resultCount} soru getirildi · ${response.candidateCount} eşleşen aday`; const cards=response.results.map(item=>{const el=document.createElement('article');el.className='question-card';const title=document.createElement('div');title.innerHTML=`<strong>#${item.questionId}</strong> · ${item.question?.metadata?.subject?.name||''} · ${item.question?.learningOutcome?.code||''}`;const txt=document.createElement('div');txt.textContent=item.question?.question?.content?.text||'(sadece görsel)';const why=document.createElement('div');why.className='small';why.textContent=item.reasons.join(' · ')||'Filtre uyumu';el.append(title,txt,why);return el;}); $('results').replaceChildren(...cards); $('status').textContent=response.resultCount?'Sonuçlar hazır.':'Bu seçimde soru bulunamadı.'; $('status').className=response.resultCount?'status success':'status error'; }catch(e){ console.error(e); $('status').textContent=e.message||'Getirme başarısız.'; $('status').className='status error'; }};
+await bootPage(); await initDB(); records=await new CurriculumRepository(db).search({}); refresh(0);
+</script></body></html>

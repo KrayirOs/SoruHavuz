@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Soru Havuzu v2 | Dashboard</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+    <section class="panel dashboard-hero">
+      <header class="page-head">
+        <span class="eyebrow">BUGÜN</span>
+        <h1>Ne çalışacaksın?</h1>
+        <p class="small">Sorunu çöz, tekrarını yap veya yeni bir soru ekle.</p>
+      </header>
+      <div class="kpi" id="kpi"></div>
+      <section class="today-review" id="todayReview"></section>
+      <div class="quick-actions" aria-label="Hızlı işlemler">
+        <a class="button-link" href="liste.html">Sorulara Git</a>
+        <a class="button-link secondary-link" href="ekle.html">＋ Soru Ekle</a>
+        <a class="button-link secondary-link" href="tekrar.html">↻ Tekrar</a>
+      </div>
+    </section>
+
+
+  </div>
+
+  <script type="module">
+    import { bootPage } from "./js/common.js";
+    import { initDB } from "./js/db/dexie-db.js";
+    import { countQuestions } from "./js/questions/question-repo.js";
+    import { db } from "./js/db/dexie-db.js";
+    import { localDateStr, isDue } from "./js/srs/srs.js";
+
+    const kpi = document.getElementById("kpi");
+
+    async function init() {
+      await bootPage();
+      await initDB();
+
+      const total = await countQuestions();
+      const today = localDateStr();
+      const [questions, notes] = await Promise.all([db.questions.toArray(), db.notes.toArray()]);
+      const dueQuestions = questions.filter(q => isDue(q, today)).length;
+      const dueNotes = notes.filter(n => isDue(n, today)).length;
+      const due = dueQuestions + dueNotes;
+      const attempts = questions.reduce((sum,q)=>sum + Number(q.statistics?.correct||0) + Number(q.statistics?.wrong||0) + Number(q.statistics?.blank||0),0);
+      const correct = questions.reduce((sum,q)=>sum + Number(q.statistics?.correct||0),0);
+      kpi.innerHTML = `
+        <article class="kpi-item"><span>Toplam Soru</span><strong>${total}</strong></article>
+        <article class="kpi-item"><span>Bugün Tekrar</span><strong>${due}</strong><span class="kpi-sub">${dueQuestions} soru · ${dueNotes} bilgi</span></article>
+        <article class="kpi-item"><span>Başarı</span><strong>${attempts ? Math.round(correct / attempts * 100) : 0}%</strong><span class="kpi-sub">${attempts} çözüm</span></article>
+      `;
+      const review = document.getElementById("todayReview");
+      review.innerHTML = due ? `<div><strong>Bugün Tekrar Etmem Gerekenler</strong><p class="small">${dueQuestions} soru ve ${dueNotes} bilgi notu tekrar bekliyor.</p></div><a class="button-link" href="tekrar.html">Tekrara Başla →</a>` : `<div><strong>Bugün tekrar bekleyen bir şey yok.</strong><p class="small">Yeni eklediğin soru ve bilgiler SRS ile otomatik takvime girer.</p></div><a class="button-link" href="ekle.html">Yeni Ekle →</a>`;
+    }
+
+    init().catch((error) => {
+      console.error(error);
+    });
+  </script>
+</body>
+</html>

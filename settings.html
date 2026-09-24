@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Soru Havuzu | Ayarlar</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+  <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+  <section class="panel">
+    <header class="page-head">
+      <h1>Ayarlar</h1>
+      <p class="small">Uygulama bilgileri, tekrar sistemi ve yerel veri durumu.</p>
+    </header>
+    <div id="stats" class="grid two"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Tekrar Sistemi</h2>
+    <div class="grid two">
+      <div>
+        <label for="intervals">Tekrar aralıkları (gün)</label>
+        <input id="intervals" type="text" placeholder="1, 2, 4, 7, 14, 30, 60">
+        <p class="small">Doğru bildikçe sıradaki aralığa geçilir.</p>
+      </div>
+      <div>
+        <label class="row" for="resetOnWrong"><input id="resetOnWrong" type="checkbox"> Yanlış cevapta başa dön</label>
+        <p class="small">Açıksa yanlış cevap ilk aralığa, kapalıysa mevcut aralığa döner.</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="saveSrs" type="button">Tekrar Ayarlarını Kaydet</button>
+    </div>
+    <div id="srsStatus" class="status info"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Bu sürüm</h2>
+    <p class="small">Uygulama AI/API bağımlılığı olmadan çalışır. Sorular, fotoğraflar, kazanımlar, çalışma kayıtları ve bilgi notları tarayıcıdaki yerel veritabanında tutulur.</p>
+    <p class="small">Fotoğraf işleme, otomatik kırpma ve SRS tekrar sistemi kullanılmaya devam eder.</p>
+  </section>
+</div>
+<script type="module">
+import { bootPage, showMessage } from './js/common.js';
+import { db, initDB } from './js/db/dexie-db.js';
+import { DEFAULT_SRS_INTERVALS, normalizeIntervals } from './js/srs/srs.js';
+
+const intervalsEl = document.querySelector('#intervals');
+const resetOnWrongEl = document.querySelector('#resetOnWrong');
+const statusEl = document.querySelector('#srsStatus');
+
+await bootPage();
+await initDB();
+const [q, n, o] = await Promise.all([db.questions.count(), db.notes.count(), db.curriculum.count()]);
+document.querySelector('#stats').innerHTML = `
+  <article class="panel"><strong>${q}</strong><span class="small">Soru</span></article>
+  <article class="panel"><strong>${n}</strong><span class="small">Bilgi notu</span></article>
+  <article class="panel"><strong>${o}</strong><span class="small">Kazanım</span></article>`;
+
+const savedIntervals = await db.settings.get('srsIntervals');
+const savedReset = await db.settings.get('srsResetOnWrong');
+intervalsEl.value = normalizeIntervals(savedIntervals?.value ?? DEFAULT_SRS_INTERVALS).join(', ');
+resetOnWrongEl.checked = savedReset?.value !== false;
+
+document.querySelector('#saveSrs').addEventListener('click', async () => {
+  const intervals = normalizeIntervals(intervalsEl.value);
+  await db.settings.bulkPut([
+    { key: 'srsIntervals', value: intervals },
+    { key: 'srsResetOnWrong', value: resetOnWrongEl.checked }
+  ]);
+  intervalsEl.value = intervals.join(', ');
+  showMessage(statusEl, 'Tekrar ayarları kaydedildi.', 'success');
+});
+</script>
+</body>
+</html>

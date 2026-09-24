@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Soru Havuzu v2 | Liste</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+    <section class="panel">
+      <header class="page-head">
+        <h1>Soru Listesi</h1>
+        <p class="small">Soruların tamamı seçtiğin resmi kazanım, ders, sınıf, ünite ve konu üzerinden filtrelenir.</p>
+      </header>
+
+      <details class="filter-box" open>
+        <summary><span>Filtreler</span><span class="filter-summary-hint">Ders, sınav, konu, kazanım…</span></summary>
+        <div class="filter-content">
+          <div class="grid two">
+            <div>
+              <label for="fExamType">Sınav</label>
+              <select id="fExamType"><option value="">Tümü</option></select>
+            </div>
+            <div>
+              <label for="fSubject">Ders</label>
+              <select id="fSubject"><option value="">Tümü</option></select>
+            </div>
+          </div>
+          <div class="grid two">
+            <div><label for="fGrade">Sınıf</label><select id="fGrade"><option value="">Tümü</option></select></div>
+            <div><label for="fUnit">Ünite</label><select id="fUnit"><option value="">Tümü</option></select></div>
+            <div><label for="fTopic">Konu</label><select id="fTopic"><option value="">Tümü</option></select></div>
+            <div><label for="fSource">Kaynak</label><input id="fSource" placeholder="Kaynak adı veya türü"></div>
+          </div>
+          <div><label for="fOutcome">Kazanım</label><select id="fOutcome"><option value="">Tümü</option></select></div>
+          <div class="actions section-actions">
+            <button id="applyBtn">Filtrele</button>
+            <button id="resetBtn" class="secondary">Sıfırla</button>
+          </div>
+        </div>
+      </details>
+      <div id="status" class="status info">Yükleniyor...</div>
+    </section>
+
+    <section class="panel">
+      <div id="count" class="small"></div>
+      <div id="list" class="list"></div>
+    </section>
+  </div>
+
+  <script type="module">
+    import { bootPage, showMessage, escapeHTML, formatDate } from "./js/common.js";
+    import { initDB } from "./js/db/dexie-db.js";
+    import { EXAM_TYPES, DIFFICULTY_LABELS } from "./js/core/constants.js";
+    import { deleteQuestion, getAllQuestions } from "./js/questions/question-repo.js";
+    import { getAsset, assetToObjectURL } from "./js/assets/asset-repo.js";
+    import { openImageViewer } from "./js/ui/image-viewer.js";
+    import { db } from "./js/db/dexie-db.js";
+
+    const fExamType = document.getElementById("fExamType");
+    const fSubject = document.getElementById("fSubject");
+    const applyBtn = document.getElementById("applyBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const countEl = document.getElementById("count");
+    const listEl = document.getElementById("list");
+    const fGrade = document.getElementById("fGrade"), fUnit = document.getElementById("fUnit"), fTopic = document.getElementById("fTopic"), fSource = document.getElementById("fSource"), fOutcome = document.getElementById("fOutcome");
+
+    const objectUrls = [];
+
+    function populateExamTypes() {
+      fExamType.innerHTML = '<option value="">Tümü</option>' +
+        Object.values(EXAM_TYPES).map((t) => `<option value="${t}">${t}</option>`).join("");
+    }
+
+    function populateSubjects() {
+      const rows = curriculumRows;
+      const names = unique(rows.map((row) => row.subject)).sort((a,b) => String(a).localeCompare(String(b), "tr-TR"));
+      setOptions(fSubject, names);
+    }
+    let curriculumRows = [];
+
+    function unique(values) {
+      return [...new Set(values.filter((value) => value !== null && value !== undefined && value !== ""))];
+    }
+
+    function setOptions(select, values, label = (value) => value) {
+      select.innerHTML = '<option value="">Tümü</option>' + values.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(label(value))}</option>`).join("");
+    }
+
+    function refreshCurriculumFilters(level = 0) {
+      if (level <= 0) {
+        setOptions(fGrade, unique(curriculumRows.filter((row) => !fSubject.value || row.subject === fSubject.value).map((row) => row.grade)).sort((a,b) => Number(a)-Number(b)));
+      }
+      const rowsForGrade = curriculumRows.filter((row) => (!fSubject.value || row.subject === fSubject.value) && (!fGrade.value || String(row.grade) === String(fGrade.value)));
+      if (level <= 1) setOptions(fUnit, unique(rowsForGrade.map((row) => row.unit)));
+      const rowsForUnit = rowsForGrade.filter((row) => !fUnit.value || row.unit === fUnit.value);
+      if (level <= 2) setOptions(fTopic, unique(rowsForUnit.map((row) => row.topic)));
+      const rowsForTopic = rowsForUnit.filter((row) => !fTopic.value || row.topic === fTopic.value);
+      if (level <= 3) {
+        fOutcome.innerHTML = '<option value="">Tümü</option>' + rowsForTopic.sort((a,b) => `${a.code}${a.text}`.localeCompare(`${b.code}${b.text}`, "tr-TR")).map((row) => `<option value="${escapeHTML(row.id)}">${escapeHTML(row.code || "—")} — ${escapeHTML(row.text || "")}</option>`).join("");
+      }
+    }
+
+    function revokeAllObjectUrls() {
+      while (objectUrls.length) URL.revokeObjectURL(objectUrls.pop());
+    }
+
+    async function renderList(items) {
+      revokeAllObjectUrls();
+      countEl.textContent = `${items.length} kayıt`;
+
+      if (!items.length) {
+        listEl.innerHTML = "<div class='small'>Kayıt bulunamadı. 'Soru Ekle' sayfasından ekleyebilirsin.</div>";
+        return;
+      }
+
+      const cards = await Promise.all(items.map(renderCard));
+      listEl.innerHTML = "";
+      cards.forEach((card) => listEl.appendChild(card));
+    }
+
+    async function renderCard(q) {
+      const article = document.createElement("article");
+      article.className = "question-card";
+      article.dataset.id = q.id;
+
+      let thumbHtml = "";
+      const thumbAssetId = q.question?.assets?.thumbnail;
+      if (thumbAssetId) {
+        const asset = await getAsset(thumbAssetId);
+        const url = assetToObjectURL(asset);
+        if (url) {
+          objectUrls.push(url);
+          thumbHtml = `<img class="thumb question-image" src="${url}" alt="Soru görseli" data-thumb-url="${url}">`;
+        }
+      }
+
+      const difficultyLabel = q.metadata.difficulty.value
+        ? `${DIFFICULTY_LABELS[q.metadata.difficulty.value]} (kaynak: ${q.metadata.difficulty.source})`
+        : "-";
+
+      article.innerHTML = `
+        <div>${escapeHTML(q.question.content.text || "(metin yok - sadece görsel)")}</div>
+        <div class="question-meta">
+          <span class="tag">${q.status === "draft" ? "Taslak" : "Hazır"}</span>
+          <span class="tag">${escapeHTML(q.metadata.exam.type || "-")}</span>
+          <span class="tag">${escapeHTML(q.metadata.subject.name || "-")}</span>
+          ${q.learningOutcome?.code ? `<span class="tag">${escapeHTML(q.learningOutcome.code)}</span>` : ""}
+          <span class="tag">Zorluk: ${escapeHTML(difficultyLabel)}</span>
+        </div>
+        ${thumbHtml}
+        
+        <div class="small">${formatDate(q.createdAt)}</div>
+        <div class="actions section-actions">
+          <a class="secondary" href="duzenle.html?id=${q.id}">Düzenle</a>
+          <button data-action="delete" class="warn">Sil</button>
+        </div>
+      `;
+      const image = article.querySelector('img.question-image');
+      if (image) {
+        image.addEventListener('click', async () => {
+          const originalId = q.question?.assets?.original || q.question?.assets?.processed;
+          const original = await getAsset(originalId);
+          const fullUrl = assetToObjectURL(original) || image.dataset.thumbUrl;
+          if (fullUrl && fullUrl !== image.dataset.thumbUrl) objectUrls.push(fullUrl);
+          openImageViewer(fullUrl, 'Soru görseli');
+        });
+      }
+      return article;
+    }
+
+    async function refresh() {
+      try {
+        let items = await getAllQuestions();
+        items = items.filter((q) => {
+          if (fExamType.value && q.metadata?.exam?.type !== fExamType.value) return false;
+          if (fSource.value && !(q.metadata?.source?.type === fSource.value || q.metadata?.source?.name === fSource.value)) return false;
+          const outcome = curriculumRows.find((row) => row.id === q.learningOutcome?.id);
+          if (fSubject.value && outcome?.subject !== fSubject.value) return false;
+          if (fGrade.value && String(outcome?.grade ?? q.metadata?.grade ?? "") !== String(fGrade.value)) return false;
+          if (fUnit.value && outcome?.unit !== fUnit.value) return false;
+          if (fTopic.value && outcome?.topic !== fTopic.value) return false;
+          if (fOutcome.value && q.learningOutcome?.id !== fOutcome.value) return false;
+          return true;
+        }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        await renderList(items);
+        showMessage(statusEl, "Liste güncellendi.", "success");
+      } catch (error) {
+        console.error(error);
+        showMessage(statusEl, error.message || "Liste yüklenemedi.", "error");
+      }
+    }
+
+    applyBtn.addEventListener("click", refresh);
+    resetBtn.addEventListener("click", async () => {
+      fExamType.value = "";
+      fGrade.value = ""; fUnit.value = ""; fTopic.value = ""; fSource.value = ""; fOutcome.value = "";
+      populateSubjects();
+      refreshCurriculumFilters(0);
+      await refresh();
+    });
+    fExamType.addEventListener("change", () => { populateSubjects(); refreshCurriculumFilters(0); });
+    fSubject.addEventListener("change", () => { fGrade.value = ""; fUnit.value = ""; fTopic.value = ""; fOutcome.value = ""; refreshCurriculumFilters(0); });
+    fGrade.addEventListener("change", () => { fUnit.value = ""; fTopic.value = ""; fOutcome.value = ""; refreshCurriculumFilters(1); });
+    fUnit.addEventListener("change", () => { fTopic.value = ""; fOutcome.value = ""; refreshCurriculumFilters(2); });
+    fTopic.addEventListener("change", () => { fOutcome.value = ""; refreshCurriculumFilters(3); });
+
+    listEl.addEventListener("click", async (event) => {
+      const btn = event.target.closest("button[data-action='delete']");
+      if (!btn) return;
+      const card = btn.closest("article[data-id]");
+      const id = Number(card.dataset.id);
+      if (!confirm("Bu soru silinecek. Devam edilsin mi?")) return;
+      try {
+        await deleteQuestion(id);
+        await refresh();
+      } catch (error) {
+        showMessage(statusEl, error.message || "Silme başarısız.", "error");
+      }
+    });
+
+    async function init() {
+      await bootPage();
+      await initDB();
+      populateExamTypes();
+      curriculumRows = await db.curriculum.toArray();
+      populateSubjects();
+      refreshCurriculumFilters(0);
+      await refresh();
+    }
+
+    init().catch((error) => {
+      console.error(error);
+      showMessage(statusEl, error.message || "Sayfa başlatılamadı.", "error");
+    });
+
+    window.addEventListener("beforeunload", revokeAllObjectUrls);
+  </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kazanımlar</title><link rel="stylesheet" href="styles.css"></head>
+<body><div class="container"><nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav><section class="panel"><h1>Kazanım Bul</h1><p class="small">Sadece sırayla seçim yapın. Ders listesi yalnızca proje içindeki Kazanımlar JSON dosyalarından gelir.</p><div class="actions"><button id="refreshBtn" type="button" class="secondary">Kazanım Verisini Yenile</button></div><div id="status" class="status info">Hazırlanıyor…</div><div id="picker" class="hidden"><div class="grid two"><div><label>Ders</label><select id="subject"></select></div><div><label>Sınıf</label><select id="grade"></select></div><div><label>Ünite</label><select id="unit"></select></div><div><label>Konu</label><select id="topic"></select></div></div><label>İsterseniz metinde ara</label><input id="search" placeholder="Örn. üçgenlerde benzerlik"><div id="summary" class="small"></div><div id="results"></div></div></section></div>
+<script type="module">
+import { bootPage } from './js/common.js';
+import { db, initDB } from './js/db/dexie-db.js';
+import { CurriculumDatasetLoader, CurriculumRepository } from './js/curriculum/index.js';
+const $ = (selector) => document.querySelector(selector), status = $('#status'), picker = $('#picker'), results = $('#results'), summary = $('#summary'), repo = new CurriculumRepository(db); let records = [];
+const value = (row, key) => row[key] || 'Belirtilmemiş'; const isCanonical = (row) => /^kazanımlar\/(biyoloji|cografya|fizik|kimya|matematik|tarih|turk_dili_ve_edebiyati)\.json$/u.test(row.source?.documentId || '');
+const options = (select, values, label) => { const current = select.value; select.replaceChildren(new Option(label, '')); [...new Set(values)].filter(Boolean).sort((a,b) => String(a).localeCompare(String(b), 'tr')).forEach((item) => select.add(new Option(item, item))); select.value = values.includes(current) ? current : ''; };
+function filtered() { return records.filter((row) => (!$('#subject').value || value(row,'subject') === $('#subject').value) && (!$('#grade').value || value(row,'grade') === $('#grade').value) && (!$('#unit').value || value(row,'unit') === $('#unit').value) && (!$('#topic').value || value(row,'topic') === $('#topic').value)); }
+function render() { const rows = filtered(), needle = $('#search').value.trim().toLocaleLowerCase('tr-TR'), visible = needle ? rows.filter((row) => `${row.code} ${row.text} ${(row.explanations || []).join(' ')}`.toLocaleLowerCase('tr-TR').includes(needle)) : rows; summary.textContent = `${visible.length} kazanım bulundu.`; results.replaceChildren(); if (!visible.length) { results.textContent = 'Bu seçimde kazanım bulunamadı.'; return; } const list = document.createElement('div'); for (const row of visible) { const item = document.createElement('details'), title = document.createElement('summary'), body = document.createElement('p'); title.textContent = `${row.code} — ${row.text}`; body.textContent = row.explanations?.[0] || 'Ek açıklama yok.'; item.append(title, body); list.append(item); } results.append(list); }
+function refreshHierarchy() { const afterSubject = filtered(); options($('#grade'), afterSubject.map((row) => value(row,'grade')), 'Tüm sınıflar'); const afterGrade = filtered(); options($('#unit'), afterGrade.map((row) => value(row,'unit')), 'Tüm üniteler'); const afterUnit = filtered(); options($('#topic'), afterUnit.map((row) => value(row,'topic')), 'Tüm konular'); render(); }
+async function synchronize() { status.textContent = 'Kazanım verisi yenileniyor…'; $('#refreshBtn').disabled = true; await new CurriculumDatasetLoader({ repository: repo }).synchronize(); records = await db.curriculum.toArray(); options($('#subject'), records.map((row) => value(row,'subject')), 'Ders seçin'); refreshHierarchy(); picker.classList.remove('hidden'); status.textContent = `${records.length} kaynak kazanımı hazır.`; $('#refreshBtn').disabled = false; }
+async function start() { await bootPage(); await initDB(); const current = await db.curriculum.toArray(); if (current.length !== 825 || current.some((row) => !isCanonical(row))) await synchronize(); else { records = current; options($('#subject'), records.map((row) => value(row,'subject')), 'Ders seçin'); refreshHierarchy(); picker.classList.remove('hidden'); status.textContent = `${records.length} kaynak kazanımı hazır.`; } }
+$('#subject').addEventListener('change', () => { $('#grade').value=''; $('#unit').value=''; $('#topic').value=''; refreshHierarchy(); }); $('#grade').addEventListener('change', () => { $('#unit').value=''; $('#topic').value=''; refreshHierarchy(); }); $('#unit').addEventListener('change', () => { $('#topic').value=''; refreshHierarchy(); }); $('#topic').addEventListener('change', render); $('#search').addEventListener('input', render); $('#refreshBtn').addEventListener('click', () => synchronize().catch((error) => { $('#refreshBtn').disabled=false; status.textContent = `Kazanımlar yenilenemedi: ${error.message}`; })); start().catch((error) => { status.textContent = `Kazanımlar yüklenemedi: ${error.message}`; });
+</script></body></html>

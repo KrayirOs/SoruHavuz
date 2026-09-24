@@ -1,0 +1,19 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>İstatistikler | Soru Havuzu</title><link rel="stylesheet" href="styles.css"></head><body><main class="container"><nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav><section class="panel"><header class="page-head"><h1>İstatistikler</h1><p class="small">Gerçek çözüm geçmişinden hesaplanır; AI veya tahmin içermez.</p></header><div class="kpi" id="kpi"></div></section><section class="panel"><h2>Ders bazında</h2><div id="subjects" class="list"></div></section></main><script type="module">import {bootPage} from './js/common.js'; import {db,initDB} from './js/db/dexie-db.js'; import {buildStatistics} from './js/statistics/statistics-service.js'; await bootPage(); await initDB(); const [q,n]=await Promise.all([db.questions.toArray(),db.notes.toArray()]); const s=buildStatistics(q,n); document.getElementById('kpi').innerHTML=`<article class="kpi-item"><span>Toplam Soru</span><strong>${s.totalQuestions}</strong></article><article class="kpi-item"><span>Çözülmüş Soru</span><strong>${s.solvedQuestions}</strong></article><article class="kpi-item"><span>Toplam Çözüm</span><strong>${s.attempts}</strong></article><article class="kpi-item"><span>Doğruluk</span><strong>${Math.round(s.accuracy*100)}%</strong></article><article class="kpi-item"><span>Bugün Tekrar</span><strong>${s.dueToday}</strong></article><article class="kpi-item"><span>Bilgi Notu</span><strong>${s.totalNotes}</strong></article>`; const root=document.getElementById('subjects'); if(!s.subjects.length){root.textContent='Henüz çözüm kaydı yok.';} else root.replaceChildren(...s.subjects.map(x=>{const el=document.createElement('article');el.className='question-card';const acc=x.attempts?Math.round(x.correct/x.attempts*100):0;el.innerHTML=`<strong>${x.subject}</strong><div class="small">${x.total} soru · ${x.solved} çözülmüş · ${x.attempts} çözüm · ${acc}% doğruluk</div>`;return el;}));</script></body></html>

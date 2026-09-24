@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Soru Havuzu v2 | Soru Ekle</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+    <section class="panel">
+      <header class="page-head">
+        <h1>Ekle</h1>
+        <p class="small">Yeni bir soru ekle veya daha sonra tekrar etmek istediğin bilgiyi kaydet.</p>
+      </header>
+
+      <div class="add-mode" role="tablist" aria-label="İçerik türü">
+        <button type="button" class="add-mode-btn active" data-mode="question">Soru Ekle</button>
+        <button type="button" class="add-mode-btn secondary" data-mode="note">Tekrar Etmelik Bilgi</button>
+      </div>
+
+      <section class="panel" id="curriculumPicker" style="margin-top:16px">
+        <h2>Kazanım</h2><p class="small">Soru ve tekrar etmelik bilgi yalnızca buradan seçilen kazanıma bağlanır.</p>
+        <div class="grid two">
+          <div><label>Ders</label><select data-curriculum-subject></select></div><div><label>Sınıf</label><select data-curriculum-grade></select></div>
+          <div><label>Ünite</label><select data-curriculum-unit></select></div><div><label>Konu</label><select data-curriculum-topic></select></div>
+        </div>
+        <label>Kazanım</label><select data-curriculum-outcome></select>
+      </section>
+      <section class="panel add-mode-panel" id="questionAddPane">
+      <div class="grid two">
+        <div>
+          <label for="examType">Sınav</label>
+          <select id="examType"></select>
+        </div>
+        <div>
+          <label for="subject">Ders</label>
+          <select id="subject"></select>
+        </div>
+      </div>
+
+      <details class="form-section">
+        <summary>Ek soru bilgileri</summary>
+        <div class="grid two">
+          <div><label for="questionType">Soru tipi</label><select id="questionType"></select></div>
+          <div><label for="solution">Çözüm (opsiyonel)</label><textarea id="solution"></textarea></div>
+        </div>
+        <div>
+          <label for="text">Soru metni (opsiyonel)</label>
+          <textarea id="text" placeholder="Fotoğraftan otomatik çıkarılacaksa boş bırakabilirsin"></textarea>
+        </div>
+      </details>
+
+      <div>
+        <label>Görsel</label>
+        <div class="actions" style="margin-top:0;">
+          <button type="button" id="cameraBtn" class="secondary">📷 Fotoğraf Çek</button>
+          <button type="button" id="liveCameraBtn" class="secondary">🎥 Canlı Kamera</button>
+          <button type="button" id="galleryBtn" class="secondary">🖼 Galeriden Seç</button>
+        </div>
+        <div class="grid two" style="margin-top:10px;"><div><label for="processingMode">İşleme modu</label><select id="processingMode"><option value="visual">Görsel (grafik/şekil koru)</option><option value="document">Metin ağırlıklı</option></select></div></div>
+        <div id="imageMeta" class="small"></div>
+        <div id="processingPanel" class="image-review hidden">
+          <img id="preview" class="thumb" alt="Görsel önizleme">
+          <div class="actions"><button type="button" id="autoCropBtn" class="secondary">Otomatik Kırp</button><button type="button" id="manualCropBtn" class="secondary">Manuel Kırp</button><button type="button" id="originalBtn" class="secondary">Tam Görüntüle</button><button type="button" id="rotateBtn" class="secondary">Döndür</button><button type="button" id="cropResetBtn" class="secondary">Sıfırla</button><button type="button" id="confirmCropBtn" class="secondary">Kırpmayı Onayla</button></div>
+          <div id="qualityMeta" class="small"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="submitBtn">Kaydet</button>
+        <button type="button" id="resetBtn" class="secondary">Temizle</button>
+      </div>
+      </section>
+
+      <section class="panel add-mode-panel hidden" id="noteAddPane">
+        <h2>Tekrar Etmelik Bilgi</h2>
+        <p class="small">Kısa bilgi, formül veya püf noktasını kaydet. Tekrar sayfasında SRS ile karşına çıkar.</p>
+        <div>
+          <label for="noteTitle">Başlık</label>
+          <input id="noteTitle" type="text" placeholder="Örn. Bileşke fonksiyonun temel kuralı">
+        </div>
+        <div>
+          <label for="noteContent">Bilgi</label>
+          <textarea id="noteContent" rows="8" placeholder="Tekrar etmek istediğin bilgiyi yaz..."></textarea>
+        </div>
+        <div>
+          <label for="noteTags">Etiketler</label>
+          <input id="noteTags" type="text" placeholder="formül, püf nokta, kısa not">
+        </div>
+        <div class="actions">
+          <button type="button" id="saveNoteBtn">Bilgiyi Kaydet</button>
+          <button type="button" id="resetNoteBtn" class="secondary">Temizle</button>
+        </div>
+      </section>
+
+      <div id="status" class="status info">Hazır</div>
+    </section>
+
+  </div>
+
+  <script type="module">
+    import { bootPage, showMessage } from "./js/common.js";
+    import { initDB } from "./js/db/dexie-db.js";
+    import {
+      EXAM_TYPES,
+      getSubjectsForExam,
+      SOURCE_TYPES,
+    } from "./js/core/constants.js";
+    import { analyseImage, processImage, makeThumbnail, getImageDimensions } from "./js/image/image-pipeline.js";
+    import { pickImageFromCamera, pickImageFromGallery, openLiveCameraStream } from "./js/camera/capture.js";
+    import { createQuestion } from "./js/questions/question-repo.js";
+    import { db } from "./js/db/dexie-db.js";
+    import { CurriculumRepository } from "./js/curriculum/repository/curriculum-repository.js";
+    import { CurriculumDatasetLoader } from "./js/curriculum/data/dataset-loader.js";
+    import { createCurriculumSelector } from "./js/ui/curriculum-selector.js";
+    import { appSubjectForCurriculum } from "./js/curriculum/core/subject-mapping.js";
+    import { QUESTION_TYPES } from "./js/questions/question-config.js";
+    import { createNote } from "./js/notes/notes-repo.js";
+    import { openImageViewer } from "./js/ui/image-viewer.js";
+
+    const examTypeEl = document.getElementById("examType");
+    const subjectEl = document.getElementById("subject");
+    const textEl = document.getElementById("text");
+    const cameraBtn = document.getElementById("cameraBtn");
+    const liveCameraBtn = document.getElementById("liveCameraBtn");
+    const galleryBtn = document.getElementById("galleryBtn");
+    const imageMeta = document.getElementById("imageMeta");
+    const preview = document.getElementById("preview");
+    const processingModeEl = document.getElementById("processingMode");
+    const processingPanel = document.getElementById("processingPanel");
+    const qualityMeta = document.getElementById("qualityMeta");
+    const submitBtn = document.getElementById("submitBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const solutionEl = document.getElementById("solution"), questionTypeEl = document.getElementById("questionType");
+    const noteAddPane = document.getElementById("noteAddPane");
+    const questionAddPane = document.getElementById("questionAddPane");
+    const noteTitleEl = document.getElementById("noteTitle");
+    const noteContentEl = document.getElementById("noteContent");
+    const noteTagsEl = document.getElementById("noteTags");
+    const saveNoteBtn = document.getElementById("saveNoteBtn");
+    let selectedOutcome = null;
+
+    let selectedFile = null;
+    let previewUrl = "";
+    let cropper = null, analysis = null, processingMode = "visual", manualEdited = false;
+
+    function populateExamTypes() {
+      examTypeEl.innerHTML = Object.values(EXAM_TYPES)
+        .map((t) => `<option value="${t}">${t}</option>`)
+        .join("");
+    }
+
+    function populateSubjects() {
+      const subjects = getSubjectsForExam(examTypeEl.value);
+      subjectEl.innerHTML = subjects.map((s) => `<option value="${s.id}" data-name="${s.name}">${s.name}</option>`).join("");
+    }
+
+    function clearPreview() {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = "";
+      }
+      selectedFile = null;
+      cropper?.destroy(); cropper = null; analysis = null;
+      processingPanel.classList.add("hidden");
+      preview.removeAttribute("src");
+      imageMeta.textContent = "";
+    }
+
+    async function onFileSelected(file) {
+      selectedFile = file;
+      manualEdited = false;
+      clearPreviewUrlOnly();
+      previewUrl = URL.createObjectURL(file);
+      preview.src = previewUrl;
+      processingPanel.classList.remove("hidden");
+      imageMeta.textContent = `${file.name || "fotoğraf"} · ${Math.round(file.size / 1024)}KB`;
+      showMessage(statusEl, "Görüntü analiz ediliyor…", "info");
+      analysis = await analyseImage(file, { mode: processingMode });
+      const dims = await getImageDimensions(file);
+      qualityMeta.textContent = `Kalite: ${analysis.quality.label} · skor ${analysis.quality.score} · parlaklık ${analysis.quality.brightness} · bulanıklık ${analysis.quality.blur}${analysis.warning ? " · " + analysis.warning : ""}`;
+      if (dims.width * dims.height < 480000) showMessage(statusEl, "Fotoğraf çözünürlüğü düşük; yine de kaydedebilirsiniz.", "error");
+      else if (!analysis.candidate) showMessage(statusEl, "Otomatik alan bulunamadı. Lütfen manuel olarak kırpın.", "info");
+      else showMessage(statusEl, "Otomatik kırpma önerisi hazır.", "success");
+      startCropper(analysis.candidate);
+    }
+
+    function startCropper(candidate) {
+      cropper?.destroy();
+      if (!window.Cropper) { showMessage(statusEl, "Cropper.js yüklenemedi; orijinal kaydedilebilir.", "error"); return; }
+      cropper = new window.Cropper(preview, { viewMode: 1, autoCropArea: .9, responsive: true, ready() { if (candidate) this.cropper.setData({ x: candidate.x * preview.naturalWidth, y: candidate.y * preview.naturalHeight, width: candidate.width * preview.naturalWidth, height: candidate.height * preview.naturalHeight }); } });
+    }
+    function cropData() { const d = cropper?.getData(true); return d ? { x: Math.max(0, d.x / preview.naturalWidth), y: Math.max(0, d.y / preview.naturalHeight), width: Math.min(1, d.width / preview.naturalWidth), height: Math.min(1, d.height / preview.naturalHeight) } : analysis?.candidate || null; }
+
+    function clearPreviewUrlOnly() {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = "";
+    }
+
+    cameraBtn.addEventListener("click", async () => {
+      try {
+        const file = await pickImageFromCamera();
+        await onFileSelected(file);
+      } catch (error) {
+        showMessage(statusEl, error.message || "Fotoğraf alınamadı.", "error");
+      }
+    });
+
+    liveCameraBtn.addEventListener("click", async () => {
+      try {
+        const file = await openLiveCameraStream();
+        await onFileSelected(file);
+      } catch (error) {
+        showMessage(statusEl, error.message || "Canlı kamera açılamadı.", "error");
+      }
+    });
+
+    galleryBtn.addEventListener("click", async () => {
+      try {
+        const file = await pickImageFromGallery();
+        await onFileSelected(file);
+      } catch (error) {
+        showMessage(statusEl, error.message || "Görsel seçilemedi.", "error");
+      }
+    });
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      showMessage(statusEl, "Kaydediliyor...", "info");
+      submitBtn.disabled = true;
+
+      try {
+        const subjectOption = subjectEl.options[subjectEl.selectedIndex];
+        const images = {};
+
+        if (selectedFile) {
+          const processed = await processImage(selectedFile, { crop: manualEdited ? cropData() : null, perspectivePoints: manualEdited ? null : analysis?.candidate?.points, mode: processingMode });
+          const thumb = await makeThumbnail(processed.blob);
+          images.original = selectedFile;
+          images.processed = processed.blob;
+          images.processedMeta = processed.meta;
+          images.thumbnail = thumb.blob;
+          images.thumbnailMeta = thumb.meta;
+        }
+
+        const question = await createQuestion(
+          {
+            text: textEl.value.trim(),
+            examType: examTypeEl.value,
+            subjectId: subjectEl.value,
+            subjectName: subjectOption?.dataset.name || subjectOption?.textContent,
+            topicId: selectedOutcome?.topic || null,
+            topicName: selectedOutcome?.topic || null,
+            grade: selectedOutcome?.grade ?? null,
+            unitId: selectedOutcome?.unit || null,
+            unitName: selectedOutcome?.unit || null,
+            solution: solutionEl.value.trim() || null,
+            questionType: questionTypeEl.value || null,
+            learningOutcome: selectedOutcome ? { id: selectedOutcome.id, code: selectedOutcome.code, text: selectedOutcome.text, source: "manual" } : null,
+            sourceType: selectedFile ? SOURCE_TYPES.PHOTO : SOURCE_TYPES.MANUAL,
+            hasVisual: Boolean(selectedFile)
+          },
+          images
+        );
+
+        showMessage(statusEl, "Taslak oluşturuldu. Düzenleyici açılıyor…", "success");
+        window.location.assign(`duzenle.html?id=${question.id}`);
+      } catch (error) {
+        console.error(error);
+        showMessage(statusEl, error.message || "Kayıt başarısız.", "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function resetForm() {
+      textEl.value = "";
+      solutionEl.value = ""; questionTypeEl.value = ""; selectedOutcome = null;
+      clearPreview();
+    }
+
+    document.getElementById("submitBtn").addEventListener("click", handleSubmit);
+    resetBtn.addEventListener("click", resetForm);
+    document.getElementById("autoCropBtn").addEventListener("click", () => { manualEdited = false; if (analysis?.candidate && cropper) cropper.setData({ x: analysis.candidate.x * preview.naturalWidth, y: analysis.candidate.y * preview.naturalHeight, width: analysis.candidate.width * preview.naturalWidth, height: analysis.candidate.height * preview.naturalHeight }); });
+    document.getElementById("manualCropBtn").addEventListener("click", () => { manualEdited = true; cropper?.enable(); showMessage(statusEl, "Kırpma çerçevesini sürükleyip kaydedin.", "info"); });
+    document.getElementById("rotateBtn").addEventListener("click", () => { manualEdited = true; cropper?.rotate(90); });
+    document.getElementById("cropResetBtn").addEventListener("click", () => cropper?.reset());
+    document.getElementById("confirmCropBtn").addEventListener("click", () => showMessage(statusEl, "Kırpma seçimi onaylandı.", "success"));
+    document.getElementById("originalBtn").addEventListener("click", () => { if (selectedFile && previewUrl) openImageViewer(previewUrl, "Yüklenen soru görseli"); });
+    preview.addEventListener("dblclick", () => { if (selectedFile && previewUrl) openImageViewer(previewUrl, "Yüklenen soru görseli"); });
+
+    document.querySelectorAll(".add-mode-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.mode;
+        document.querySelectorAll(".add-mode-btn").forEach((item) => item.classList.toggle("active", item === button));
+        questionAddPane.classList.toggle("hidden", mode !== "question");
+        noteAddPane.classList.toggle("hidden", mode !== "note");
+      });
+    });
+
+    saveNoteBtn.addEventListener("click", async () => {
+      try {
+        if (!selectedOutcome?.id) throw new Error("Önce bir kazanım seçin.");
+        if (!noteTitleEl.value.trim() || !noteContentEl.value.trim()) throw new Error("Bilgi başlığı ve içeriği zorunludur.");
+        const subjectOption = subjectEl.options[subjectEl.selectedIndex];
+        await createNote({
+          title: noteTitleEl.value.trim(),
+          content: noteContentEl.value.trim(),
+          subjectId: subjectEl.value || null,
+          subjectName: subjectOption?.dataset.name || subjectOption?.textContent || null,
+          topicId: selectedOutcome.topic || null,
+          topicName: selectedOutcome.topic || null,
+          learningOutcomeId: selectedOutcome.id,
+          learningOutcomeCode: selectedOutcome.code,
+          learningOutcomeText: selectedOutcome.text,
+          tags: noteTagsEl.value.split(",").map((value) => value.trim()).filter(Boolean)
+        });
+        noteTitleEl.value = ""; noteContentEl.value = ""; noteTagsEl.value = "";
+        showMessage(statusEl, "Tekrar etmelik bilgi kaydedildi.", "success");
+      } catch (error) {
+        showMessage(statusEl, error.message || "Bilgi kaydedilemedi.", "error");
+      }
+    });
+    document.getElementById("resetNoteBtn").addEventListener("click", () => { noteTitleEl.value = ""; noteContentEl.value = ""; noteTagsEl.value = ""; });
+    document.getElementById("originalBtn").addEventListener("click", () => { if (selectedFile) { clearPreviewUrlOnly(); previewUrl = URL.createObjectURL(selectedFile); preview.src = previewUrl; startCropper(analysis?.candidate); } });
+    processingModeEl.addEventListener("change", () => { processingMode = processingModeEl.value; if (selectedFile) onFileSelected(selectedFile).catch((e) => showMessage(statusEl, e.message, "error")); });
+    examTypeEl.addEventListener("change", populateSubjects);
+
+    async function init() {
+      await bootPage();
+      await initDB();
+      questionTypeEl.innerHTML = '<option value="">Seçin</option>' + QUESTION_TYPES.map((item) => `<option value="${item.id}">${item.label}</option>`).join("");
+      const curriculumRepo = new CurriculumRepository(db);
+      let curriculumRows = await db.curriculum.toArray();
+      if (!curriculumRows.length) { await new CurriculumDatasetLoader({ repository: curriculumRepo }).synchronize(); curriculumRows = await db.curriculum.toArray(); }
+      createCurriculumSelector(document.getElementById("curriculumPicker"), curriculumRows, (row) => {
+        selectedOutcome = row;
+        if (!row) return;
+        const appSubject = appSubjectForCurriculum(row.subject, examTypeEl.value);
+        if (appSubject && [...subjectEl.options].some((item) => item.value === appSubject.id)) subjectEl.value = appSubject.id;
+      });
+      populateExamTypes();
+      populateSubjects();
+      const requestedMode = new URLSearchParams(location.search).get("mode");
+      if (requestedMode === "note") document.querySelector('.add-mode-btn[data-mode="note"]')?.click();
+      showMessage(statusEl, "Hazır", "success");
+    }
+
+    init().catch((error) => {
+      console.error(error);
+      showMessage(statusEl, error.message || "Sayfa başlatılamadı.", "error");
+    });
+
+    window.addEventListener("beforeunload", clearPreviewUrlOnly);
+  </script>
+  <script src="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.js"></script>
+</body>
+</html>

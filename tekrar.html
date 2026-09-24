@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Soru Havuzu | Tekrar</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+  <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+  <section class="panel">
+    <header class="page-head">
+      <h1>Tekrar Zamanı</h1>
+      <p class="small">Zamanı gelen sorular ve tekrar etmelik bilgiler burada. Doğru bildikçe aralık uzar.</p>
+    </header>
+    <div class="kpi" id="kpi"></div>
+  </section>
+
+  <section class="panel">
+    <div id="status" class="status info">Yükleniyor...</div>
+    <div id="reviewArea"></div>
+  </section>
+</div>
+
+<script type="module">
+import { bootPage, showMessage, escapeHTML } from './js/common.js';
+import { db, initDB } from './js/db/dexie-db.js';
+import { getAsset, assetToObjectURL } from './js/assets/asset-repo.js';
+import { applyReview, DEFAULT_SRS_INTERVALS, isDue, localDateStr, normalizeIntervals } from './js/srs/srs.js';
+import { openImageViewer } from './js/ui/image-viewer.js';
+
+const kpi = document.querySelector('#kpi');
+const statusEl = document.querySelector('#status');
+const reviewArea = document.querySelector('#reviewArea');
+let queue = [];
+let index = 0;
+let done = 0;
+let currentObjectUrl = '';
+let intervals = DEFAULT_SRS_INTERVALS;
+let resetOnWrong = true;
+
+function clearImage() {
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+  currentObjectUrl = '';
+}
+
+function stageDots(stage) {
+  return `<div class="stage-dots">${intervals.map((_, i) => `<span class="${i <= stage ? 'filled' : ''}"></span>`).join('')}</div>`;
+}
+
+function renderKpi() {
+  kpi.innerHTML = `
+    <article class="kpi-item"><span>Bugün Bekleyen</span><strong>${queue.length}</strong></article>
+    <article class="kpi-item"><span>Kalan</span><strong>${Math.max(queue.length - index, 0)}</strong></article>
+    <article class="kpi-item"><span>Tamamlanan</span><strong>${done}</strong></article>`;
+}
+
+async function questionImage(question) {
+  // Tekrar ekranında daima tam çözünürlüklü orijinali tercih et.
+  const assetId = question.question?.assets?.original || question.question?.assets?.processed;
+  if (!assetId) return '';
+  const asset = await getAsset(assetId);
+  if (!asset) return '';
+  currentObjectUrl = assetToObjectURL(asset) || '';
+  return currentObjectUrl ? `<img class="thumb question-image" src="${currentObjectUrl}" alt="Soru görseli" data-question-image="true">` : '';
+}
+
+async function renderCurrent() {
+  clearImage();
+  const item = queue[index];
+  renderKpi();
+  if (!item) {
+    reviewArea.innerHTML = queue.length
+      ? '<article class="question-card"><strong>Bu tur tamamlandı.</strong><p class="small">Yeni tekrarlar zamanı geldiğinde burada görünecek.</p></article>'
+      : '<article class="question-card"><strong>Bugün tekrar yok.</strong><p class="small">Harika. Yeni bir soru veya bilgi eklediğinde SRS onu tekrar kuyruğuna alır.</p></article>';
+    showMessage(statusEl, 'Tekrar oturumu hazır.', 'success');
+    return;
+  }
+
+  if (item.kind === 'question') {
+    const q = item.record;
+    const imageHtml = await questionImage(q);
+    const outcomeHtml = q.learningOutcome?.code ? `<span class="tag">${escapeHTML(q.learningOutcome.code)}</span>` : '';
+    const text = q.question?.content?.text || '(sadece görsel)';
+    const solution = q.question?.content?.solution || '';
+    reviewArea.innerHTML = `
+      <article class="question-card">
+        <div class="question-meta"><span class="tag">Soru</span>${outcomeHtml}<span class="tag">${escapeHTML(q.metadata?.subject?.name || '')}</span></div>
+        <div class="review-content">${escapeHTML(text)}</div>
+        ${imageHtml}
+        ${stageDots(q.srs?.stage || 0)}
+        <div class="small">${q.srs?.reviewCount || 0}. tekrar · ${intervals[q.srs?.stage || 0]} gün</div>
+        <div id="revealSlot"></div>
+        <div class="actions section-actions"><button id="revealBtn" type="button" class="secondary">Çözümü Göster</button></div>
+        <div class="actions section-actions">
+          <button id="wrongBtn" type="button" class="warn">✗ Yine yanlış</button>
+          <button id="partialBtn" type="button" class="secondary">≈ Zorlandım ama doğru</button>
+          <button id="correctBtn" type="button" class="correct">✓ Doğru bildim</button>
+        </div>
+      </article>`;
+    document.querySelector('#revealBtn').onclick = () => { document.querySelector('#revealSlot').innerHTML = `<div class="answer-reveal">${escapeHTML(solution || 'Bu soru için ayrı çözüm kaydedilmemiş.')}</div>`; };
+    document.querySelector('[data-question-image="true"]')?.addEventListener('click', () => openImageViewer(currentObjectUrl, 'Soru görseli'));
+    document.querySelector('[data-question-image="true"]')?.addEventListener('dblclick', () => openImageViewer(currentObjectUrl, 'Soru görseli'));
+  } else {
+    const n = item.record;
+    const outcomeHtml = n.learningOutcomeCode ? `<span class="tag">${escapeHTML(n.learningOutcomeCode)}</span>` : '';
+    reviewArea.innerHTML = `
+      <article class="question-card">
+        <div class="question-meta"><span class="tag">Bilgi</span>${outcomeHtml}<span class="tag">${escapeHTML(n.subjectName || '')}</span></div>
+        <h2>${escapeHTML(n.title)}</h2>
+        ${stageDots(n.srs?.stage || 0)}
+        <div class="small">${n.srs?.reviewCount || 0}. tekrar · ${intervals[n.srs?.stage || 0]} gün</div>
+        <div id="revealSlot"></div>
+        <div class="actions section-actions"><button id="revealBtn" type="button" class="secondary">Bilgiyi Göster</button></div>
+        <div class="actions section-actions">
+          <button id="wrongBtn" type="button" class="warn">✗ Hatırlayamadım</button>
+          <button id="partialBtn" type="button" class="secondary">≈ Kısmen hatırladım</button>
+          <button id="correctBtn" type="button" class="correct">✓ Hatırladım</button>
+        </div>
+      </article>`;
+    document.querySelector('#revealBtn').onclick = () => { document.querySelector('#revealSlot').innerHTML = `<div class="answer-reveal">${escapeHTML(n.content || '').replaceAll('\n','<br>')}</div>`; };
+  }
+
+  document.querySelector('#correctBtn').onclick = () => submitReview(item, 'correct');
+  document.querySelector('#partialBtn').onclick = () => submitReview(item, 'partial');
+  document.querySelector('#wrongBtn').onclick = () => submitReview(item, 'wrong');
+}
+
+async function submitReview(item, result) {
+  try {
+    const nextSrs = applyReview(item.record.srs, result, { intervals, resetOnWrong });
+    if (item.kind === 'question') await db.questions.update(item.record.id, { srs: nextSrs, updatedAt: new Date().toISOString() });
+    else await db.notes.update(item.record.id, { srs: nextSrs, updatedAt: new Date().toISOString() });
+    done += 1;
+    index += 1;
+    showMessage(statusEl, result === 'correct' ? 'Kaydedildi. Aralık uzatıldı.' : result === 'wrong' ? 'Kaydedildi. Tekrar aralığı başa alındı.' : 'Kaydedildi. Aynı aralıktan tekrar gelecek.', 'success');
+    await renderCurrent();
+  } catch (error) {
+    showMessage(statusEl, error.message || 'Tekrar sonucu kaydedilemedi.', 'error');
+  }
+}
+
+async function init() {
+  await bootPage();
+  await initDB();
+  const savedIntervals = await db.settings.get('srsIntervals');
+  const savedReset = await db.settings.get('srsResetOnWrong');
+  intervals = normalizeIntervals(savedIntervals?.value ?? DEFAULT_SRS_INTERVALS);
+  resetOnWrong = savedReset?.value !== false;
+  const today = localDateStr();
+  const [questions, notes] = await Promise.all([
+    db.questions.where('srs.nextReviewDate').belowOrEqual(today).toArray(),
+    db.notes.where('srs.nextReviewDate').belowOrEqual(today).toArray()
+  ]);
+  queue = [
+    ...questions.map((record) => ({ kind: 'question', record })),
+    ...notes.map((record) => ({ kind: 'note', record }))
+  ].filter((item) => isDue(item.record, today))
+    .sort((a, b) => String(a.record.srs?.nextReviewDate || '').localeCompare(String(b.record.srs?.nextReviewDate || '')));
+  renderKpi();
+  await renderCurrent();
+}
+
+init().catch((error) => { console.error(error); showMessage(statusEl, error.message || 'Tekrar sayfası açılamadı.', 'error'); });
+window.addEventListener('beforeunload', clearImage);
+</script>
+</body>
+</html>

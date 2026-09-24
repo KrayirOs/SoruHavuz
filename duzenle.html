@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Soru Düzenle | Soru Havuzu</title><link rel="stylesheet" href="styles.css">
+</head>
+<body><div class="container"><nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+<section class="panel">
+<header class="page-head"><h1>Soru Düzenleyici</h1><p class="small">Soru bilgilerini yalnızca resmi kazanım verisinden seçerek düzenle.</p></header>
+<div id="status" class="status info">Yükleniyor…</div>
+<div id="editor" class="hidden">
+  <div class="grid two">
+    <div><label for="examType">Sınav *</label><select id="examType"></select></div>
+    <div><label for="year">Yıl</label><select id="year"></select></div>
+    <div><label for="subject">Ders</label><select id="subject"></select></div>
+    <div><label for="difficulty">Zorluk</label><select id="difficulty"><option value="">Seç</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+  </div>
+
+  <section class="panel" id="curriculumPicker">
+    <h2>Kazanım</h2><p class="small">Konu ve ünite elle yazılmaz; seçilen kazanımdan otomatik gelir.</p>
+    <div class="grid two">
+      <div><label>Ders</label><select data-curriculum-subject></select></div>
+      <div><label>Sınıf</label><select data-curriculum-grade></select></div>
+      <div><label>Ünite</label><select data-curriculum-unit></select></div>
+      <div><label>Konu</label><select data-curriculum-topic></select></div>
+    </div>
+    <label>Kazanım</label><select data-curriculum-outcome></select>
+  </section>
+
+  <div><label for="tags">Etiketler</label><input id="tags" placeholder="fonksiyon, grafik"></div>
+  <div><label for="questionText">Soru metni</label><textarea id="questionText" placeholder="Sorunun metni"></textarea></div>
+  <div class="actions"><button id="previewBtn" type="button" class="secondary">Önizle</button><button id="saveBtn" type="button">Kaydet</button><a href="liste.html" class="secondary">Listeye Dön</a></div>
+</div></section>
+<section id="previewPanel" class="panel hidden"><h2>Önizleme</h2><div id="previewContent" class="question-card"></div><div class="actions"><button id="editBtn" class="secondary">Düzenlemeye Dön</button><button id="previewSaveBtn">Kaydet</button></div></section>
+</div>
+<script type="module">
+import { bootPage, showMessage } from './js/common.js';
+import { db, initDB } from './js/db/dexie-db.js';
+import { getQuestion, updateQuestion } from './js/questions/question-repo.js';
+import { getAsset, assetToObjectURL } from './js/assets/asset-repo.js';
+import { EXAM_TYPES, getSubjectsForExam } from './js/core/constants.js';
+import { ensureStructuredContent, buildBlocks, isReadyForSave } from './js/questions/question-model.js';
+import { CurriculumRepository } from './js/curriculum/repository/curriculum-repository.js';
+import { CurriculumDatasetLoader } from './js/curriculum/data/dataset-loader.js';
+import { createCurriculumSelector } from './js/ui/curriculum-selector.js';
+import { appSubjectForCurriculum } from './js/curriculum/core/subject-mapping.js';
+import { renderBlocksPreview } from './js/ui/content-blocks.js';
+import { openImageViewer } from './js/ui/image-viewer.js';
+
+const $ = (s) => document.querySelector(s);
+const status = $('#status');
+const editor = $('#editor');
+const previewPanel = $('#previewPanel');
+const id = Number(new URLSearchParams(location.search).get('id'));
+let question = null;
+let assetUrl = '';
+let originalAssetUrl = '';
+let selectedOutcome = null;
+let selector = null;
+
+function populateExamTypes() { $('#examType').innerHTML = Object.values(EXAM_TYPES).map((x) => `<option value="${x}">${x}</option>`).join(''); }
+function populateSubjects() {
+  const subjects = getSubjectsForExam($('#examType').value);
+  $('#subject').innerHTML = subjects.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+}
+
+function fill(q, curriculumRows) {
+  question = ensureStructuredContent(q);
+  populateExamTypes();
+  $('#examType').value = question.metadata.exam.type || Object.values(EXAM_TYPES)[0];
+  $('#year').innerHTML = '<option value="">Seç</option>' + Array.from({ length: 12 }, (_, i) => `<option value="${2020 + i}">${2020 + i}</option>`).join('');
+  $('#year').value = question.metadata.exam.year || '';
+  populateSubjects();
+  $('#subject').value = question.metadata.subject.id || '';
+  $('#difficulty').value = question.metadata.difficulty.value || '';
+  $('#tags').value = (question.metadata.tags || []).join(', ');
+  $('#questionText').value = question.question.content.text || '';
+  selector = createCurriculumSelector($('#curriculumPicker'), curriculumRows, (row) => {
+    selectedOutcome = row;
+    if (!row) return;
+    const mapped = appSubjectForCurriculum(row.subject, $('#examType').value);
+    if (mapped && [...$('#subject').options].some((item) => item.value === mapped.id)) $('#subject').value = mapped.id;
+  });
+  selector.setSelected(question.learningOutcome?.id || '');
+  editor.classList.remove('hidden');
+}
+
+function collectData() {
+  const next = structuredClone(question);
+  if (!selectedOutcome?.id) throw new Error('Bir kazanım seçmelisin.');
+  next.metadata.exam = { ...next.metadata.exam, type: $('#examType').value, year: Number($('#year').value) || null };
+  next.metadata.subject = { id: $('#subject').value || null, name: $('#subject').selectedOptions[0]?.textContent || null };
+  next.metadata.grade = selectedOutcome.grade ?? null;
+  next.metadata.unit = { id: selectedOutcome.unit || null, name: selectedOutcome.unit || null };
+  next.metadata.topic = { id: selectedOutcome.topic || null, name: selectedOutcome.topic || null };
+  next.learningOutcome = { id: selectedOutcome.id, code: selectedOutcome.code || null, text: selectedOutcome.text || null, confidence: null, source: 'manual' };
+  next.metadata.difficulty = { value: Number($('#difficulty').value) || null, source: 'user', confidence: null };
+  next.metadata.tags = $('#tags').value.split(',').map((tag) => tag.trim()).filter(Boolean);
+  next.question.content.text = $('#questionText').value;
+  next.question.content.blocks = buildBlocks({ text: next.question.content.text, processedAssetId: next.question.assets.processed, choices: next.question.content.choices || [] });
+  next.status = isReadyForSave(next) ? 'ready' : 'draft';
+  return next;
+}
+
+async function save() {
+  try { const next = collectData(); await updateQuestion(question.id, () => next); question = next; showMessage(status, next.status === 'ready' ? 'Soru hazır olarak kaydedildi.' : 'Taslak kaydedildi.', 'success'); }
+  catch (error) { showMessage(status, error.message || 'Soru kaydedilemedi.', 'error'); }
+}
+
+function preview() {
+  renderBlocksPreview($('#previewContent'), collectData(), assetUrl, originalAssetUrl);
+  const previewImage = $('#previewContent img.question-image');
+  previewImage?.addEventListener('click', () => openImageViewer(originalAssetUrl || assetUrl, 'Soru görseli'));
+  previewImage?.addEventListener('dblclick', () => openImageViewer(originalAssetUrl || assetUrl, 'Soru görseli'));
+  editor.classList.add('hidden'); previewPanel.classList.remove('hidden');
+}
+
+async function init() {
+  if (!Number.isInteger(id) || id < 1) throw new Error('Geçersiz soru bağlantısı.');
+  await bootPage(); await initDB();
+  const q = await getQuestion(id); if (!q) throw new Error('Soru bulunamadı.');
+  let rows = await db.curriculum.toArray();
+  if (!rows.length) { await new CurriculumDatasetLoader({ repository: new CurriculumRepository(db) }).synchronize(); rows = await db.curriculum.toArray(); }
+  fill(q, rows);
+  const processedId = q.question.assets.processed || q.question.assets.original;
+  const originalId = q.question.assets.original || q.question.assets.processed;
+  if (processedId) { const asset = await getAsset(processedId); assetUrl = assetToObjectURL(asset) || ''; }
+  if (originalId) { const original = await getAsset(originalId); originalAssetUrl = assetToObjectURL(original) || ''; }
+  showMessage(status, 'Soru düzenleniyor.', 'info');
+}
+
+$('#examType').addEventListener('change', () => { populateSubjects(); if (selectedOutcome) { const mapped = appSubjectForCurriculum(selectedOutcome.subject, $('#examType').value); if (mapped && [...$('#subject').options].some((item) => item.value === mapped.id)) $('#subject').value = mapped.id; } });
+$('#saveBtn').onclick = save;
+$('#previewSaveBtn').onclick = save;
+$('#previewBtn').onclick = () => { try { preview(); } catch (error) { showMessage(status, error.message, 'error'); } };
+$('#editBtn').onclick = () => { previewPanel.classList.add('hidden'); editor.classList.remove('hidden'); };
+init().catch((error) => showMessage(status, error.message || 'Editör açılamadı.', 'error'));
+addEventListener('beforeunload', () => assetUrl && URL.revokeObjectURL(assetUrl));
+</script>
+</body></html>

@@ -1,0 +1,2 @@
+export const CURRICULUM_SOURCE_TYPES = Object.freeze({ CURRICULUM: "curriculum", QUESTION_BOOK: "question_book", TEXTBOOK: "textbook", SAMPLE_QUESTION: "sample_question", USER: "user" });
+export function createCurriculumSource({ documentId, documentName, page = null }) { if (!documentId || !documentName) throw new TypeError("documentId and documentName are required."); return { documentId, documentName, page }; }

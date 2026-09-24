@@ -1,0 +1,16 @@
+{
+  "name": "soru-havuzu-v2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dexie tabanlı, fotoğraf destekli soru bankası ve çalışma PWA'sı. Build adımı yoktur; tarayıcıda doğrudan çalışır (ESM + CDN üzerinden Dexie/Cropper.js).",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "serve": "node server.mjs",
+    "serve:static": "python3 -m http.server 8080"
+  },
+  "license": "UNLICENSED"
+}
