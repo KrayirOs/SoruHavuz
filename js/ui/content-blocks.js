@@ -9,7 +9,17 @@ export function renderBlocksPreview(container, question, assetUrl, originalAsset
   container.replaceChildren();
   for (const block of question.question.content.blocks || []) {
     if (block.type === "text") { const p = document.createElement("p"); p.textContent = block.content; container.appendChild(p); }
-    if (block.type === "image" && (originalAssetUrl || assetUrl)) { const image = document.createElement("img"); image.className = "inline-image-full question-image"; image.src = originalAssetUrl || assetUrl; image.alt = "Soru görseli"; container.appendChild(image); }
-    if (block.type === "choices") { const list = document.createElement("div"); list.className = "preview-choices"; for (const item of block.items) { const choice = document.createElement("div"); choice.textContent = `${item.id}) ${item.content}`; list.appendChild(choice); } container.appendChild(list); }
+    if (block.type === "image" && (originalAssetUrl || assetUrl)) {
+      const image = document.createElement("img");
+      image.className = "inline-image-full question-image";
+      image.src = originalAssetUrl || assetUrl;
+      image.alt = "Soru görseli";
+      image.loading = "eager";
+      image.decoding = "async";
+      const { attachInlineZoom } = await import("./image-viewer.js");
+      queueMicrotask(() => attachInlineZoom(image));
+      container.appendChild(image);
+    }
+    if (block.type === "choices") { const list = document.createElement("div"); list.className = "preview-choices"; for (const item of block.items) { const choice = document.createElement("div"); choice.textContent = item.content; list.appendChild(choice); } container.appendChild(list); }
   }
 }
