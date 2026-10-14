@@ -1,0 +1,1 @@
+export function lexicalJaccard(a,b){const tokens=text=>new Set(String(text||'').toLocaleLowerCase('tr-TR').split(/[^\p{L}\p{N}]+/u).filter(Boolean));const A=tokens(a),B=tokens(b);if(!A.size&&!B.size)return 1;let intersection=0;for(const x of A)if(B.has(x))intersection++;return intersection/(A.size+B.size-intersection||1);}

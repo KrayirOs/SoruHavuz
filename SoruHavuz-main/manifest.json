@@ -1,0 +1,17 @@
+{
+  "name": "Soru Havuzu v2",
+  "short_name": "Sorular v2",
+  "description": "Dexie tabanlı, soru bankası ve kişisel çalışma PWA'sı",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d0e12",
+  "theme_color": "#0d0e12",
+  "lang": "tr",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

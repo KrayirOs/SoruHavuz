@@ -1,0 +1,2 @@
+export const RECOMMENDATION_SCORE_VERSION = "adaptive-v1";
+export const RECOMMENDATION_CONFIG = Object.freeze({ scoreVersion: RECOMMENDATION_SCORE_VERSION, priorMastery: .5, challengeOffset: .1, recentErrorWindow: 5, recentErrorDecay: .75, maxExposureForPenalty: 5, redundancyWeight: .18, explorationRate: 0, weights: { relevance: .22, masteryGap: .24, difficultyFit: .16, expectedLearningGain: .2, recentError: .1, novelty: .08, exposurePenalty: 0 } });

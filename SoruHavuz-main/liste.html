@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Soru Havuzu v2 | Liste</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav" aria-label="Ana gezinme">
+  <a href="index.html" data-nav="index.html" aria-label="Ana sayfa" title="Ana sayfa"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Ana</span></a>
+  <a href="liste.html" data-nav="liste.html" aria-label="Sorular" title="Sorular"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Sorular</span></a>
+  <a href="tekrar.html" data-nav="tekrar.html" aria-label="Tekrar" title="Tekrar"><span class="nav-icon" aria-hidden="true">↻</span><span class="nav-label">Tekrar</span></a>
+  <a href="ekle.html" data-nav="ekle.html" class="nav-add" aria-label="Soru veya bilgi ekle" title="Ekle"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Ekle</span></a>
+  <div class="nav-more-wrap">
+    <button type="button" class="nav-more-btn" aria-expanded="false" aria-controls="navMoreMenu" aria-label="Diğer sayfalar" title="Diğer sayfalar">
+      <span class="nav-icon" aria-hidden="true">•••</span><span class="nav-label">Daha</span>
+    </button>
+    <div class="nav-more-menu" id="navMoreMenu" hidden>
+      <a class="nav-more-link" href="retrieval.html" data-nav="retrieval.html"><span aria-hidden="true">⌕</span><span>Soru Getir</span></a>
+      <a class="nav-more-link" href="statistics.html" data-nav="statistics.html"><span aria-hidden="true">◒</span><span>İstatistik</span></a>
+      <a class="nav-more-link" href="notes.html" data-nav="notes.html"><span aria-hidden="true">▤</span><span>Notlar</span></a>
+      <a class="nav-more-link" href="curriculum.html" data-nav="curriculum.html"><span aria-hidden="true">◇</span><span>Kazanımlar</span></a>
+      <a class="nav-more-link" href="import.html" data-nav="import.html"><span aria-hidden="true">⇩</span><span>İçe Aktar</span></a>
+      <a class="nav-more-link" href="settings.html" data-nav="settings.html"><span aria-hidden="true">⚙</span><span>Ayarlar</span></a>
+    </div>
+  </div>
+</nav>
+
+    <section class="panel">
+      <header class="page-head">
+        <h1>Soru Listesi</h1>
+        <p class="small">Sorularını kategori, etiket, kaynak ve zorlukla bul.</p>
+      </header>
+
+      <details class="filter-box" open>
+        <summary><span>Filtreler</span><span class="filter-summary-hint">Kategori, etiket, kaynak…</span></summary>
+        <div class="filter-content">
+          <div class="grid two">
+            <div><label for="fCategory">Kategori</label><select id="fCategory"><option value="">Tümü</option></select></div>
+            <div><label for="fSource">Kaynak</label><input id="fSource" placeholder="Kaynak adı veya türü"></div>
+          </div>
+          <div><label for="fSearch">Ara</label><input id="fSearch" placeholder="Soru metni veya etiket ara"></div>
+          <div class="actions section-actions">
+            <button id="applyBtn">Filtrele</button>
+            <button id="resetBtn" class="secondary">Sıfırla</button>
+          </div>
+        </div>
+      </details>
+      <div id="status" class="status info">Yükleniyor...</div>
+    </section>
+
+    <section class="panel">
+      <div id="count" class="small"></div>
+      <div id="list" class="list"></div>
+    </section>
+  </div>
+
+  <script type="module">
+    import { bootPage, showMessage, escapeHTML, formatDate } from "./js/common.js";
+    import { initDB } from "./js/db/dexie-db.js";
+    import { DIFFICULTY_LABELS } from "./js/core/constants.js";
+    import { deleteQuestion, getAllQuestions } from "./js/questions/question-repo.js";
+    import { getAsset, assetToObjectURL } from "./js/assets/asset-repo.js";
+    import { openImageViewer } from "./js/ui/image-viewer.js";
+    import { db } from "./js/db/dexie-db.js";
+    import { listCategories, migrateLegacyCategories } from "./js/categories/category-repo.js";
+
+    const fCategory = document.getElementById("fCategory");
+    const applyBtn = document.getElementById("applyBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const countEl = document.getElementById("count");
+    const listEl = document.getElementById("list");
+    const fSource = document.getElementById("fSource"), fSearch = document.getElementById("fSearch");
+
+    const objectUrls = [];
+
+    async function populateCategories() {
+      const current = fCategory.value;
+      fCategory.innerHTML = '<option value="">Tümü</option>' + (await listCategories()).map((category) => `<option value="${category.id}">${escapeHTML(category.name)}</option>`).join("");
+      fCategory.value = current;
+    }
+
+    function revokeAllObjectUrls() {
+      while (objectUrls.length) URL.revokeObjectURL(objectUrls.pop());
+    }
+
+    async function renderList(items) {
+      revokeAllObjectUrls();
+      countEl.textContent = `${items.length} kayıt`;
+
+      if (!items.length) {
+        listEl.innerHTML = "<div class='small'>Kayıt bulunamadı. 'Soru Ekle' sayfasından ekleyebilirsin.</div>";
+        return;
+      }
+
+      const cards = await Promise.all(items.map(renderCard));
+      listEl.innerHTML = "";
+      cards.forEach((card) => listEl.appendChild(card));
+    }
+
+    async function renderCard(q) {
+      const article = document.createElement("article");
+      article.className = "question-card";
+      article.dataset.id = q.id;
+
+      let thumbHtml = "";
+      const thumbAssetId = q.question?.assets?.thumbnail;
+      if (thumbAssetId) {
+        const asset = await getAsset(thumbAssetId);
+        const url = assetToObjectURL(asset);
+        if (url) {
+          objectUrls.push(url);
+          thumbHtml = `<img class="thumb question-image" src="${url}" alt="Soru görseli" data-thumb-url="${url}">`;
+        }
+      }
+
+      const difficultyLabel = q.metadata.difficulty.value
+        ? `${DIFFICULTY_LABELS[q.metadata.difficulty.value]} (kaynak: ${q.metadata.difficulty.source})`
+        : "-";
+
+      article.innerHTML = `
+        <div>${escapeHTML(q.question.content.text || "(metin yok - sadece görsel)")}</div>
+        <div class="question-meta">
+          <span class="tag">${q.status === "draft" ? "Taslak" : "Hazır"}</span>
+          ${q.category?.name ? `<span class="tag">${escapeHTML(q.category.name)}</span>` : ""}
+          <span class="tag">Zorluk: ${escapeHTML(difficultyLabel)}</span>
+        </div>
+        ${thumbHtml}
+        
+        <div class="small">${formatDate(q.createdAt)}</div>
+        <div class="actions section-actions">
+          <a class="secondary" href="duzenle.html?id=${q.id}">Düzenle</a>
+          <button data-action="delete" class="warn">Sil</button>
+        </div>
+      `;
+      const image = article.querySelector('img.question-image');
+      if (image) {
+        image.addEventListener('click', async () => {
+          const originalId = q.question?.assets?.original || q.question?.assets?.processed;
+          const original = await getAsset(originalId);
+          const fullUrl = assetToObjectURL(original) || image.dataset.thumbUrl;
+          if (fullUrl && fullUrl !== image.dataset.thumbUrl) objectUrls.push(fullUrl);
+          openImageViewer(fullUrl, 'Soru görseli');
+        });
+      }
+      return article;
+    }
+
+    async function refresh() {
+      try {
+        let items = await getAllQuestions();
+        items = items.filter((q) => {
+          if (fSource.value && !(q.metadata?.source?.type === fSource.value || q.metadata?.source?.name === fSource.value)) return false;
+          if (fCategory.value && q.category?.id !== Number(fCategory.value)) return false;
+          if (fSearch.value.trim()) {
+            const haystack = `${q.question?.content?.text || ""} ${q.category?.name || ""} ${(q.metadata?.tags || []).join(" ")}`.toLocaleLowerCase("tr-TR");
+            if (!haystack.includes(fSearch.value.trim().toLocaleLowerCase("tr-TR"))) return false;
+          }
+          return true;
+        }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        await renderList(items);
+        showMessage(statusEl, "Liste güncellendi.", "success");
+      } catch (error) {
+        console.error(error);
+        showMessage(statusEl, error.message || "Liste yüklenemedi.", "error");
+      }
+    }
+
+    applyBtn.addEventListener("click", refresh);
+    resetBtn.addEventListener("click", async () => {
+      fCategory.value = ""; fSource.value = ""; fSearch.value = "";
+      await refresh();
+    });
+
+    listEl.addEventListener("click", async (event) => {
+      const btn = event.target.closest("button[data-action='delete']");
+      if (!btn) return;
+      const card = btn.closest("article[data-id]");
+      const id = Number(card.dataset.id);
+      if (!confirm("Bu soru silinecek. Devam edilsin mi?")) return;
+      try {
+        await deleteQuestion(id);
+        await refresh();
+      } catch (error) {
+        showMessage(statusEl, error.message || "Silme başarısız.", "error");
+      }
+    });
+
+    async function init() {
+      await bootPage();
+      await initDB();
+      await migrateLegacyCategories();
+      await populateCategories();
+      await refresh();
+    }
+
+    init().catch((error) => {
+      console.error(error);
+      showMessage(statusEl, error.message || "Sayfa başlatılamadı.", "error");
+    });
+
+    window.addEventListener("beforeunload", revokeAllObjectUrls);
+  </script>
+</body>
+</html>
