@@ -1,3 +1,3 @@
 # SoruHavuz
 
-https://krayiros.github.io/SoruHavuz/SoruHavuz-main/ekle.html
+https://krayiros.github.io/SoruHavuz/SoruHavuz-main/
