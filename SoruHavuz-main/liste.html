@@ -108,14 +108,16 @@
       article.className = "question-card";
       article.dataset.id = q.id;
 
-      let thumbHtml = "";
-      const thumbAssetId = q.question?.assets?.thumbnail;
-      if (thumbAssetId) {
-        const asset = await getAsset(thumbAssetId);
+      let imageHtml = "";
+      // Listede küçük thumbnail yerine, kullanıcının yüklediği orijinal dosyayı göster.
+      // Eski kayıtlarda orijinal yoksa işlenmiş kopyaya güvenli şekilde geri dönülür.
+      const imageAssetId = q.question?.assets?.original || q.question?.assets?.processed;
+      if (imageAssetId) {
+        const asset = await getAsset(imageAssetId);
         const url = assetToObjectURL(asset);
         if (url) {
           objectUrls.push(url);
-          thumbHtml = `<img class="thumb question-image" src="${url}" alt="Soru görseli" data-thumb-url="${url}">`;
+          imageHtml = `<img class="thumb question-image" src="${url}" alt="Soru görseli">`;
         }
       }
 
@@ -130,7 +132,7 @@
           ${q.category?.name ? `<span class="tag">${escapeHTML(q.category.name)}</span>` : ""}
           <span class="tag">Zorluk: ${escapeHTML(difficultyLabel)}</span>
         </div>
-        ${thumbHtml}
+        ${imageHtml}
         
         <div class="small">${formatDate(q.createdAt)}</div>
         <div class="actions section-actions">
@@ -140,13 +142,7 @@
       `;
       const image = article.querySelector('img.question-image');
       if (image) {
-        image.addEventListener('click', async () => {
-          const originalId = q.question?.assets?.original || q.question?.assets?.processed;
-          const original = await getAsset(originalId);
-          const fullUrl = assetToObjectURL(original) || image.dataset.thumbUrl;
-          if (fullUrl && fullUrl !== image.dataset.thumbUrl) objectUrls.push(fullUrl);
-          openImageViewer(fullUrl, 'Soru görseli');
-        });
+        image.addEventListener('click', () => openImageViewer(image.currentSrc || image.src, 'Soru görseli'));
       }
       return article;
     }

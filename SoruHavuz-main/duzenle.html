@@ -91,10 +91,14 @@ async function init() {
   const q = await getQuestion(id); if (!q) throw new Error('Soru bulunamadı.');
   fill(q);
   showMessage(status, 'Soru düzenleniyor.', 'info');
-  const processedId = q.question.assets.processed || q.question.assets.original;
-  const originalId = q.question.assets.original || q.question.assets.processed;
-  if (processedId) { const asset = await getAsset(processedId); assetUrl = assetToObjectURL(asset) || ''; }
-  if (originalId) { const original = await getAsset(originalId); originalAssetUrl = assetToObjectURL(original) || ''; }
+  // Kullanıcının yüklediği orijinal görseli göster; eski kayıtlarda işlenmiş
+  // kopya yalnızca geriye dönük uyumluluk için kullanılır.
+  const imageId = q.question.assets.original || q.question.assets.processed;
+  if (imageId) {
+    const asset = await getAsset(imageId);
+    assetUrl = assetToObjectURL(asset) || '';
+    originalAssetUrl = assetUrl;
+  }
 }
 
 $('#saveBtn').onclick = save;
@@ -103,8 +107,9 @@ $('#previewBtn').onclick = async () => { try { await preview(); } catch (error) 
 $('#editBtn').onclick = () => { previewPanel.classList.add('hidden'); editor.classList.remove('hidden'); };
 init().catch((error) => showMessage(status, error.message || 'Editör açılamadı.', 'error'));
 addEventListener('beforeunload', () => {
-  if (assetUrl) URL.revokeObjectURL(assetUrl);
-  if (originalAssetUrl) URL.revokeObjectURL(originalAssetUrl);
+  for (const url of new Set([assetUrl, originalAssetUrl])) {
+    if (url) URL.revokeObjectURL(url);
+  }
 });
 </script>
 </body></html>
